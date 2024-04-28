@@ -5,9 +5,12 @@ import { SignInContainer, ButtonsContainer } from "./signInForm-style.jsx";
 import FormInput from "../FormInput/formInput";
 import { buttonType } from "../Button/button";
 import Button from "../Button/button";
+import {useDispatch } from 'react-redux';
+import { setUser } from '../../Store/userSlice';
 
 export default function SignInForm() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const user = {
     // displayName: "",
     email: "",
@@ -41,16 +44,26 @@ export default function SignInForm() {
         localStorage.setItem("userId", data.userid);
       }
       if (data.role === "teacher") {
+        let user = {
+          studentAuth: false,
+          teacherAuth: true
+        }
+        dispatch(setUser(user))
         navigate("/teacher");
       }
-      if (data.role === "student" || data.userid) {
+      else if (data.role === "student" || data.userid) {
+        let user = {
+          studentAuth: true,
+          teacherAuth: false
+        }
+        dispatch(setUser(user))
         navigate("/student");
       }
-      if (data.role === "admin"|| data.userid) {
-        navigate("/admin");
-      }
+      // if (data.role === "admin"|| data.userid) {
+      //   navigate("/admin");
+      // }
     } catch (error) {
-      console.log(error.response);
+      console.log(error);
     }
   };
   const handleChange = (event) => {

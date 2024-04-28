@@ -17,7 +17,7 @@ export default function NavigationBar() {
     <Fragment>
       <NavigationBarContainer>
         <LogoContainer to="/">
-          <img src="" alt="Crown" className="logo" />
+          <img src="quiz.png" alt="Logo" className="logo" style={{ width: '75px', height: '55px' }}  />
         </LogoContainer>
         <NavLinksContainer>
           <NavLink to="/shop">SHOP</NavLink>
