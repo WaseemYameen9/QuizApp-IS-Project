@@ -9,6 +9,7 @@ router.get("/users", userController.getUsers);
 router.get("/users/:id", userController.getUser);
 router.patch("/users/:id", userController.updateUser);
 router.post("/users/login", userController.loginUser);
+router.post("/users/verify", userController.verifyCode);
 router.post("/admin", validateToken, userController.adminDashboard);
 router.get(
   "/shared",

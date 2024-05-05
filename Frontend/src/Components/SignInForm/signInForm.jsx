@@ -14,10 +14,13 @@ export default function SignInForm() {
   const [userCredentials, setUserCredentials] = useState({
     email: "",
     password: "",
+    verificationCode: "", // New state to hold the verification code
   });
-  const [lockedEmails, setLockedEmails] = useState({}); // Store locked email data (email: { attempts, lockedAt })
 
-  const { email, password } = userCredentials;
+  const [lockedEmails, setLockedEmails] = useState({}); // Store locked email data (email: { attempts, lockedAt })
+  const [isCodeSent, setIsCodeSent] = useState(false); // Track if the verification code is sent
+
+  const { email, password, verificationCode } = userCredentials;
 
   const handleFailedLogin = (email) => {
     const newAttempts = (lockedEmails[email]?.attempts || 0) + 1;
@@ -50,36 +53,58 @@ export default function SignInForm() {
     }
 
     try {
-      const response = await axios.post(
-        "http://localhost:3005/api/users/login",
-        userCredentials,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
+      // If verification code is empty, proceed with normal login
+      if (!verificationCode) {
+        const response = await axios.post(
+          "http://localhost:3005/api/users/login",
+          { email, password }, // Send email and password only
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        const data = response.data;
+        console.log(data);
+        if (data.message === "Verification code sent successfully") {
+          setIsCodeSent(true); // Update state to indicate code is sent
         }
-      );
-      const data = response.data;
 
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.userid);
-      }
+      
+      } else {
+        // If verification code is provided, send it to the backend for verification
+        const response = await axios.post(
+          "http://localhost:3005/api/users/verify",
+          { email, code: verificationCode },
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        const data = response.data;
 
-      if (data.role === "teacher") {
-        let user = {
-          studentAuth: false,
-          teacherAuth: true,
-        };
-        dispatch(setUser(user));
-        navigate("/teacher");
-      } else if (data.role === "student" || data.userid) {
-        let user = {
-          studentAuth: true,
-          teacherAuth: false,
-        };
-        dispatch(setUser(user));
-        navigate("/student");
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("userId", data.userid);
+        }
+
+        // Assuming you navigate based on the role retrieved from the backend
+        if (data.role === "teacher") {
+          let user = {
+            studentAuth: false,
+            teacherAuth: true,
+          };
+          dispatch(setUser(user));
+          navigate("/teacher");
+        } else if (data.role === "student" || data.userid) {
+          let user = {
+            studentAuth: true,
+            teacherAuth: false,
+          };
+          dispatch(setUser(user));
+          navigate("/student");
+        }
       }
     } catch (error) {
       console.log(error);
@@ -116,9 +141,20 @@ export default function SignInForm() {
           value={password}
           onChange={handleChange}
         />
+        {/* Display verification code input only if it's sent */}
+        {isCodeSent && (
+          <FormInput
+            label={"Verification Code"}
+            required
+            name="verificationCode"
+            type="text"
+            value={verificationCode}
+            onChange={handleChange}
+          />
+        )}
         <ButtonsContainer>
           <Button button={"default"} type="submit">
-            Sign In
+            {isCodeSent ? "Verify Code" : "Sign In"}
           </Button>
         </ButtonsContainer>
       </form>
