@@ -1,6 +1,35 @@
 const bcrypt = require("bcrypt");
 const User = require("../models/userModel");
+const nodemailer = require("nodemailer");
+  
 
+// Function to generate a random code
+function generateCode() {
+  return Math.random().toString(36).substr(2, 6); // Generate a 6-character alphanumeric code
+}
+
+// Function to send email
+async function sendEmail(email, code) {
+  // Create a nodemailer transporter
+  let transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+          user: '2021cs82@student.uet.edu.pk', // Your Gmail email address
+          pass: '' // Your Gmail password
+      }
+  });
+  //console.log(transporter );
+  // Email content
+  let mailOptions = {
+      from: '2021cs82@student.uet.edu.pk',
+      to: email,
+      subject: 'Verification Code for Login',
+      text: `Your verification code is: ${code}`
+  };
+  //console.log(mailOptions);
+  // Send email
+  await transporter.sendMail(mailOptions);
+}
 async function createUser(req, res) {
   console.log(req.body);
   try {
@@ -101,26 +130,65 @@ async function loginUser(req, res) {
   console.log({ email, password });
 
   try {
-    const user = await User.findOne({ email });
-    console.log(user);
-    if (!user) return res.status(404).json({ error: "User not found" });
+      const user = await User.findOne({ email });
+      // console.log(user);
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (!(await bcrypt.compare(password, user.password))) {
-      return res.status(400).json({ error: "Invalid credentials" });
-    }
-
-    var token = generteLoginToken(user);
-
-    return res.status(200).json({
-      message: "Logged in successfully",
-      email: email,
-      fullname: user.fullname,
-      userid: user._id,
-      token: token,
-      role: user.role,
-    });
+      if (!(await bcrypt.compare(password, user.password))) {
+          return res.status(400).json({ error: "Invalid credentials" });
+      }
+      //console.log('login');
+      // Generate verification code
+      const verificationCode = generateCode();
+      //console.log(verificationCode);
+      // Save verification code to user document
+      user.verificationCode = verificationCode;
+      await user.save();
+      
+      // Send verification code via email
+      await sendEmail(email, verificationCode);
+      //console.log('login2')
+      return res.status(200).json({
+          message: "Verification code sent successfully",
+          email: email,
+          fullname: user.fullname,
+          userid: user._id,
+      });
   } catch (err) {
-    return res.status(500).json({ message: err });
+      return res.status(500).json({ message: err });
+  }
+}
+
+async function verifyCode(req, res) {
+  console.log('verifyCode');
+  const { email, code } = req.body;
+
+  try {
+      const user = await User.findOne({ email });
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+      console.log(user);
+      if (user.verificationCode !== code) {
+          return res.status(400).json({ error: "Invalid verification code" });
+      }
+
+      // Clear verification code after successful verification
+      user.verificationCode = null;
+      await user.save();
+
+      // Generate JWT token for user
+      const token = jwt.sign({ email: user.email, id: user._id }, process.env.ACCESS_TOKEN_SECRET);
+
+      return res.status(200).json({
+          message: "Logged in successfully",
+          email: email,
+          fullname: user.fullname,
+          userid: user._id,
+          token: token,
+          role: user.role,
+      });
+  } catch (err) {
+      return res.status(500).json({ message: err });
   }
 }
 async function adminDashboard(req, res) {
@@ -159,4 +227,5 @@ module.exports = {
   adminDashboard,
   requireRoles,
   sharedRoles,
+  verifyCode,
 };
