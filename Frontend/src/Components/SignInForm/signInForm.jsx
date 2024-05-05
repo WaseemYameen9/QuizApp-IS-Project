@@ -1,30 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { SignInContainer, ButtonsContainer } from "./signInForm-style.jsx";
 import FormInput from "../FormInput/formInput";
-import { buttonType } from "../Button/button";
 import Button from "../Button/button";
-import {useDispatch } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { setUser } from '../../Store/userSlice';
 
 export default function SignInForm() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const user = {
-    // displayName: "",
+
+  const [userCredentials, setUserCredentials] = useState({
     email: "",
     password: "",
-    // confirmPassword: "",
-    // role: "teacher",
+  });
+  const [lockedEmails, setLockedEmails] = useState({}); // Store locked email data (email: { attempts, lockedAt })
+
+  const { email, password } = userCredentials;
+
+  const handleFailedLogin = (email) => {
+    const newAttempts = (lockedEmails[email]?.attempts || 0) + 1;
+    const isLocked = newAttempts >= 3;
+    setLockedEmails({
+      ...lockedEmails,
+      [email]: {
+        attempts: newAttempts,
+        lockedAt: isLocked ? new Date() : null,
+      },
+    });
   };
-  const [userCredentials, setUserCredentials] = useState(user);
-  const { displayName, email, password, confirmPassword, role } =
-    userCredentials;
+
+  useEffect(() => {
+    // Clear timeouts on component unmount
+    return () => {
+      for (const lockedEmail in lockedEmails) {
+        clearTimeout(lockedEmails[lockedEmail].timeoutId);
+      }
+    };
+  }, []); // Empty dependency array to run only once
+
   const handleSubmit = async (event) => {
     event.preventDefault();
-    console.log("submitting");
-    console.log(userCredentials);
+
+    const lockedEmailData = lockedEmails[email];
+    if (lockedEmailData && lockedEmailData.lockedAt && new Date() - lockedEmailData.lockedAt < 30000) {
+      console.log("This account is locked. Please try again later.");
+      return;
+    }
+
     try {
       const response = await axios.post(
         "http://localhost:3005/api/users/login",
@@ -36,44 +60,45 @@ export default function SignInForm() {
         }
       );
       const data = response.data;
-      console.log(data);
-      // reset the form
-      setUserCredentials(user);
+
       if (data.token) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("userId", data.userid);
       }
+
       if (data.role === "teacher") {
         let user = {
           studentAuth: false,
-          teacherAuth: true
-        }
-        dispatch(setUser(user))
+          teacherAuth: true,
+        };
+        dispatch(setUser(user));
         navigate("/teacher");
-      }
-      else if (data.role === "student" || data.userid) {
+      } else if (data.role === "student" || data.userid) {
         let user = {
           studentAuth: true,
-          teacherAuth: false
-        }
-        dispatch(setUser(user))
+          teacherAuth: false,
+        };
+        dispatch(setUser(user));
         navigate("/student");
       }
-      // if (data.role === "admin"|| data.userid) {
-      //   navigate("/admin");
-      // }
     } catch (error) {
       console.log(error);
+      handleFailedLogin(email);
     }
   };
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setUserCredentials({ ...userCredentials, [name]: value });
   };
+
   return (
     <SignInContainer>
       <h2>Already have an account?</h2>
       <span>Sign in with your email and password</span>
+      {lockedEmails[email] && lockedEmails[email].lockedAt && new Date() - lockedEmails[email].lockedAt < 30000 && (
+        <p>This account is locked. Please try again later.</p>
+      )}
       <form onSubmit={handleSubmit}>
         <FormInput
           label={"Email"}
@@ -95,13 +120,6 @@ export default function SignInForm() {
           <Button button={"default"} type="submit">
             Sign In
           </Button>
-          {/* <Button
-            type="button"
-            button={buttonType.googleSignIn}
-            //onClick={logGoogleUserPopup}
-          >
-            Google Sign In
-          </Button> */}
         </ButtonsContainer>
       </form>
     </SignInContainer>
